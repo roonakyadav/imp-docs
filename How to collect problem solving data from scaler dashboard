@@ -1,0 +1,2972 @@
+# Scaler++ — Scaler API & Historical Problem Activity Discovery
+
+> **Status:** Discovery validated  
+> **Discovery date:** 27 July 2026  
+> **Purpose:** Preserve everything discovered while investigating whether Scaler++ can build a GitHub-style contribution/activity graph from a student's historical Scaler activity.
+>
+> This document exists so that the API-discovery work does **not need to be repeated manually** in DevTools.
+
+---
+
+# 1. Why We Investigated This
+
+The Scaler student dashboard has a large amount of unused space on the main Practice/dashboard page.
+
+The proposed Scaler++ feature is a GitHub-style activity/contribution calendar showing a student's academic/problem-solving activity.
+
+Conceptually:
+
+```text
+                  Problem Solving Activity
+
+Mon   ■ □ ■ ■ □ □ ■ ■ ■ □ □ ...
+Tue   □ ■ ■ □ □ ■ ■ ■ □ □ ■ ...
+Wed   ■ ■ ■ ■ □ □ □ ■ ■ ■ □ ...
+Thu   □ □ ■ ■ ■ □ ■ ■ □ ■ ■ ...
+Fri   ■ ■ ■ □ ■ ■ ■ □ □ ■ ■ ...
+Sat   □ ■ □ □ ■ ■ ■ ■ □ □ □ ...
+Sun   ■ □ ■ ■ □ □ ■ □ ■ ■ ■ ...
+
+      Less  □ ░ ▒ ▓ ■  More
+```
+
+Potential statistics underneath could include:
+
+- Problems solved
+- Problems attempted
+- Total submissions
+- Successful submissions
+- Failed submissions
+- Current streak
+- Longest streak
+- Active days
+- Problems solved this week/month/year
+- Average problems per active day
+- Programming-language usage
+- Runtime/memory statistics
+- Score statistics
+- First-attempt success rate
+- Attempts required before solving
+- Other useful academic/activity metrics
+
+The major technical question was:
+
+> **Can Scaler++ reconstruct activity from BEFORE the browser extension was installed?**
+
+If Scaler only exposed current aggregate counts such as `48 / 49 problems solved`, then historical activity would be impossible to reconstruct accurately.
+
+In that case Scaler++ would have needed to start recording events locally from the installation date.
+
+However, the investigation showed that **Scaler exposes historical submission records containing timestamps**.
+
+Therefore historical reconstruction appears possible.
+
+---
+
+# 2. Final Discovery
+
+## YES — Scaler exposes historical submission timestamps
+
+A user-submission object returned by Scaler contains fields such as:
+
+```json
+{
+  "id": 285022548,
+  "submission_content": "...",
+  "created_at": "2026-03-04T15:29:03.000Z",
+  "programming_language": "Java 8 (array support)",
+  "programming_language_id": 510,
+  "time": 488,
+  "memory": 59536,
+  "status": "correct_answer",
+  "time_unit": "ms",
+  "memory_unit": "KB",
+  "score": 300.0,
+  "logs": null,
+  "lab_session_log": null,
+  "submission_download_url": null
+}
+```
+
+The critical field is:
+
+```json
+"created_at": "2026-03-04T15:29:03.000Z"
+```
+
+This gives an exact historical timestamp for a submission.
+
+Therefore Scaler++ can potentially reconstruct historical activity instead of tracking only activity performed after installation.
+
+---
+
+# 3. Important Distinction: Submission Time vs `time_to_solve`
+
+During the investigation, an API response was found containing:
+
+```json
+{
+  "id": 215577879,
+  "submission_id": 297082275,
+  "submission_result": "correct_answer",
+  "has_solved": true,
+  "no_of_attempts_left": 0,
+  "achieved_score": 75.0,
+  "time_to_solve": 80
+}
+```
+
+Initially, `time_to_solve` looked potentially useful for determining when something was solved.
+
+It is **not the historical timestamp we need**.
+
+It describes some duration/solve metric associated with the problem attempt.
+
+The useful historical timestamp comes from the user-submissions endpoint:
+
+```json
+"created_at": "2026-06-10T15:08:23.000Z"
+```
+
+Therefore:
+
+```text
+time_to_solve
+    ≠
+historical solve date/time
+```
+
+Use:
+
+```text
+created_at
+```
+
+for the activity calendar.
+
+---
+
+# 4. Submission Request Payload
+
+When a user submits an answer, the request payload observed for problem `15992` was:
+
+```json
+{
+  "submission_type": "submit",
+  "programming_language_id": 0,
+  "problem_id": "15992",
+  "submission_content": [
+    "c1 represents shallow copy and c2 represents deep copy",
+    "If arr and c1 are printed after line 4 and 7 respectively, they would have printed 12 as first element."
+  ],
+  "test_id": 1254633
+}
+```
+
+Important identifiers:
+
+```text
+problem_id = 15992
+test_id    = 1254633
+```
+
+These identifiers are useful because historical submissions can later be requested using the test ID and problem ID.
+
+---
+
+# 5. User Submissions API
+
+The most important endpoint discovered was:
+
+```text
+GET /api/v2/tests/{test_id}/problems/{problem_id}/user_submissions
+```
+
+Observed example:
+
+```text
+https://www.scaler.com/api/v2/tests/1254633/problems/15992/user_submissions?page=1&per_page=100
+```
+
+Generalized:
+
+```text
+https://www.scaler.com/api/v2/tests/<TEST_ID>/problems/<PROBLEM_ID>/user_submissions?page=1&per_page=100
+```
+
+This endpoint returned historical submission records.
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "293112145",
+      "type": "user_submission",
+      "attributes": {
+        "id": 293112145,
+        "submission_content": "[\"c1 represents shallow copy and c2 represents deep copy\", \"If arr and c1 are printed after line 4 and 7 respectively, they would have printed 12 as first element.\"]",
+        "created_at": "2026-06-10T15:08:23.000Z",
+        "programming_language": null,
+        "programming_language_id": 0,
+        "time": 0,
+        "memory": 0,
+        "status": "correct_answer",
+        "time_unit": "ms",
+        "memory_unit": "KB",
+        "score": 0,
+        "logs": null,
+        "lab_session_log": null,
+        "submission_download_url": null
+      }
+    }
+  ],
+  "meta": {
+    "current": 1,
+    "total": 4
+  }
+}
+```
+
+This confirmed that Scaler stores historical submission data.
+
+---
+
+# 6. Pagination
+
+The user-submissions response contains:
+
+```json
+"meta": {
+  "current": 1,
+  "total": 4
+}
+```
+
+Therefore pagination must be handled.
+
+Even though the request can use:
+
+```text
+per_page=100
+```
+
+the implementation should **not assume one request always contains everything**.
+
+Potential sync logic:
+
+```text
+GET ...?page=1&per_page=100
+
+read meta.total
+
+if more pages exist:
+    GET page=2
+    GET page=3
+    ...
+```
+
+The exact semantics of `meta.total` should be confirmed during implementation rather than blindly assuming whether it represents pages or another count.
+
+---
+
+# 7. Test Problems API
+
+Another important endpoint was discovered:
+
+```text
+GET /api/v2/tests/{test_id}/problems
+```
+
+Example:
+
+```text
+https://www.scaler.com/api/v2/tests/1254633/problems
+```
+
+Another observed test:
+
+```text
+https://www.scaler.com/api/v2/tests/1226161/problems
+```
+
+This endpoint allows Scaler++ to obtain the problems belonging to a particular test.
+
+This is critical because the extension needs:
+
+```text
+test ID
+    ↓
+problem IDs
+    ↓
+submission history for each problem
+```
+
+rather than manually knowing every problem ID.
+
+---
+
+# 8. Curriculum / Module Discovery
+
+Scaler exposes curriculum/module information.
+
+One observed response contained:
+
+```json
+{
+  "data": [
+    {
+      "id": "411",
+      "type": "academy_module",
+      "attributes": {
+        "id": 411,
+        "name": "Academic Club Activities",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "455",
+      "type": "academy_module",
+      "attributes": {
+        "id": 455,
+        "name": "Academic Clubs",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "468",
+      "type": "academy_module",
+      "attributes": {
+        "id": 468,
+        "name": "English Language & Communication Skills - III",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "466",
+      "type": "academy_module",
+      "attributes": {
+        "id": 466,
+        "name": "Fundamental DSA",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "162",
+      "type": "academy_module",
+      "attributes": {
+        "id": 162,
+        "name": "Probability & Statistics",
+        "category": "core",
+        "duration_in_weeks": 12,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "337",
+      "type": "academy_module",
+      "attributes": {
+        "id": 337,
+        "name": "Probability & Statistics",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    },
+    {
+      "id": "467",
+      "type": "academy_module",
+      "attributes": {
+        "id": 467,
+        "name": "Web Applications using REACT",
+        "category": "core",
+        "duration_in_weeks": 4,
+        "code": null,
+        "repeat": null
+      }
+    }
+  ]
+}
+```
+
+This demonstrates that Scaler exposes module IDs and names.
+
+For example:
+
+```text
+Fundamental DSA
+module_id = 466
+```
+
+---
+
+# 9. Semester / Curriculum Structure Observed
+
+The Scaler UI showed multiple semesters/terms:
+
+```text
+SEM 0
+SEM 1 (Term 1)
+SEM 1 (Term 2)
+SEM 2 (Term 1)
+SEM 2 (Term 2)
+```
+
+This matters because reconstructing **all historical activity** may require traversing more than the currently selected term.
+
+The extension cannot simply inspect the current semester.
+
+The discovery/sync system should eventually account for all accessible historical curriculum periods.
+
+---
+
+# 10. Module → Classes/Topics
+
+For module `466` (`Fundamental DSA`), the curriculum page loaded class/topic information.
+
+A response contained objects like:
+
+```json
+{
+  "id": "3189259::506679",
+  "type": "mentee_academy_topic",
+  "attributes": {
+    "id": "3189259::506679",
+    "status": "active",
+    "activity_type": "lecture",
+    "is_skill_contest": null,
+    "on_demand_contest_link": null,
+    "is_skill_earned": null,
+    "mentee_lesson_ids": [
+      566324496,
+      566324503,
+      566324509
+    ]
+  },
+  "relationships": {
+    "super_batch_academy_topic": {
+      "data": {
+        "id": "506679",
+        "type": "super_batch_academy_topic"
+      }
+    },
+    "mentee_lessons": {
+      "data": [
+        {
+          "id": "566324496",
+          "type": "mentee_lesson"
+        },
+        {
+          "id": "566324503",
+          "type": "mentee_lesson"
+        },
+        {
+          "id": "566324509",
+          "type": "mentee_lesson"
+        }
+      ]
+    }
+  },
+  "meta": {
+    "day_number": 265
+  }
+}
+```
+
+Other observed topic IDs included:
+
+```text
+506679
+506680
+506681
+506683
+506678
+```
+
+with day numbers such as:
+
+```text
+265
+266
+268
+269
+```
+
+This establishes another level of the hierarchy:
+
+```text
+Academy Module
+    ↓
+Mentee Academy Topic / Super Batch Academy Topic
+    ↓
+Mentee Lessons
+```
+
+---
+
+# 11. Class/Session Endpoint Data
+
+Opening class/topic `506679` returned detailed session data.
+
+Observed response:
+
+```json
+{
+  "data": {
+    "id": "506679",
+    "type": "data",
+    "attributes": {
+      "id": "506679",
+      "batch_lesson": {
+        "start_time": "2026-02-02T05:00:00.000Z",
+        "duration": 120,
+        "title": "Bit Manipulations 1",
+        "test_id": null,
+        "id": 5641239,
+        "status": "completed",
+        "platform": "drona",
+        "session_link": "/meetings/i/bit-manipulations-1-4/",
+        "session_id": 1003034,
+        "recording_links": null,
+        "pre_lecture_content": {
+          "consumed": false,
+          "data": []
+        },
+        "post_lecture_content": {
+          "consumed": false,
+          "data": []
+        },
+        "literature_resources": {
+          "consumed": true,
+          "data": []
+        },
+        "lecture_notes": {
+          "consumed": true,
+          "data": [
+            {
+              "id": 394059,
+              "filename": "FDSA__Bit_Manipulations_1",
+              "woolf_resource_id": null
+            }
+          ]
+        }
+      },
+      "notebooks_associates": [],
+      "lecture_bookmarks": [],
+      "academy_user_lesson": {
+        "id": 566324496,
+        "lesson_rating": null,
+        "academy_topic_id": 134273,
+        "aggregate_attendance": 73.458,
+        "live_attendance_coins": false,
+        "archived_attendance_coins": false,
+        "status": "active",
+        "feedback_submitted": null,
+        "feedback_form_link": null,
+        "feedback_summary": []
+      },
+      "concept_solvebot_enabled": false,
+      "is_transcript_generated": true
+    }
+  }
+}
+```
+
+Important fields include:
+
+```text
+start_time
+duration
+title
+status
+session_id
+aggregate_attendance
+```
+
+Example:
+
+```text
+title                = Bit Manipulations 1
+start_time           = 2026-02-02T05:00:00.000Z
+duration             = 120
+status               = completed
+aggregate_attendance = 73.458
+```
+
+This may later allow Scaler++ to display class/session statistics in addition to problem-solving activity.
+
+However, the immediate contribution-calendar project should focus on problem/submission data first.
+
+---
+
+# 12. Important Finding: `batch_lesson.test_id` Can Be Null
+
+For:
+
+```text
+Bit Manipulations 1
+```
+
+the session response contained:
+
+```json
+"test_id": null
+```
+
+Yet the class clearly had an Assignment section.
+
+Therefore:
+
+> **Do not assume `batch_lesson.test_id` gives the assignment test ID.**
+
+The assignment had to be discovered separately.
+
+This is an important implementation warning.
+
+---
+
+# 13. Assignment Test ID Discovery
+
+For the `Bit Manipulations 1` assignment, the network panel exposed a request named:
+
+```text
+1226161
+```
+
+The corresponding test-problems endpoint was:
+
+```text
+https://www.scaler.com/api/v2/tests/1226161/problems
+```
+
+Therefore:
+
+```text
+test_id = 1226161
+```
+
+for that assignment.
+
+This confirmed that the test ID can be discovered from the assignment-related API traffic even when:
+
+```json
+batch_lesson.test_id = null
+```
+
+---
+
+# 14. Assignment Example: Bit Manipulations 1
+
+The assignment UI showed:
+
+```text
+Assignment: 6/6
+Additional Problems: 2/3
+Problems Solved: 8/9
+```
+
+Problems visible included:
+
+```text
+Q1. Add Binary Strings
+Q2. Bit Operations - 1
+Q3. Binary Addition
+Q4. Bit Operations
+Q5. Bit Operations - 5
+Q6. Find nth Magic Number
+```
+
+The UI also showed metadata including:
+
+- difficulty
+- score
+- solved status
+- number of submissions
+- number of students who solved the problem
+
+Examples:
+
+```text
+Add Binary Strings
+Difficulty: Easy
+Score: 200/200
+Status: Solved
+Submissions: 2
+Solved By: 220
+```
+
+and:
+
+```text
+Bit Operations - 1
+Difficulty: Very Easy
+Score: 25/25
+Status: Solved
+Submissions: 3
+Solved By: 223
+```
+
+This means additional useful metrics may potentially be derived from test/problem APIs beyond the contribution calendar.
+
+---
+
+# 15. Full Historical Submission Proof
+
+The strongest proof came from `Add Binary Strings`.
+
+The API returned:
+
+```json
+{
+  "data": [
+    {
+      "id": "285022548",
+      "type": "user_submission",
+      "attributes": {
+        "id": 285022548,
+        "submission_content": "public class Solution {\n    public String addBinary(String A, String B) {\n\n        int i = A.length() - 1;\n        int j = B.length() - 1;\n\n        int carry = 0;\n        StringBuilder result = new StringBuilder();\n\n        while(i >= 0 || j >= 0 || carry == 1) {\n\n            int sum = carry;\n\n            if(i >= 0) {\n                sum = sum + (A.charAt(i) - '0');\n                i--;\n            }\n\n            if(j >= 0) {\n                sum = sum + (B.charAt(j) - '0');\n                j--;\n            }\n\n            result.append(sum % 2);\n            carry = sum / 2;\n        }\n\n        return result.reverse().toString();\n    }\n}",
+        "created_at": "2026-03-04T15:29:03.000Z",
+        "programming_language": "Java 8 (array support)",
+        "programming_language_id": 510,
+        "time": 488,
+        "memory": 59536,
+        "status": "correct_answer",
+        "time_unit": "ms",
+        "memory_unit": "KB",
+        "score": 300.0,
+        "logs": null,
+        "lab_session_log": null,
+        "submission_download_url": null
+      }
+    },
+    {
+      "id": "285022484",
+      "type": "user_submission",
+      "attributes": {
+        "id": 285022484,
+        "submission_content": "public class Solution {\n    public String addBinary(String A, String B) {\n\n        // Convert binary strings to decimal numbers\n        int num1 = Integer.parseInt(A, 2);\n        int num2 = Integer.parseInt(B, 2);\n\n        // Add the numbers\n        int sum = num1 + num2;\n\n        // Convert the result back to binary\n        return Integer.toBinaryString(sum);\n    }\n}",
+        "created_at": "2026-03-04T15:28:01.000Z",
+        "programming_language": "Java 8 (array support)",
+        "programming_language_id": 510,
+        "time": null,
+        "memory": null,
+        "status": "runtime_error",
+        "time_unit": "ms",
+        "memory_unit": "KB",
+        "score": 0.0,
+        "logs": null,
+        "lab_session_log": null,
+        "submission_download_url": null
+      }
+    }
+  ],
+  "meta": {
+    "current": 1,
+    "total": 1
+  }
+}
+```
+
+This is the key proof-of-concept dataset.
+
+---
+
+# 16. Timeline Derived From That Response
+
+The student's history for this problem was:
+
+```text
+2026-03-04 15:28:01 UTC
+    ↓
+runtime_error
+
+62 seconds later
+
+2026-03-04 15:29:03 UTC
+    ↓
+correct_answer
+```
+
+Therefore Scaler++ can derive:
+
+```text
+Problem: Add Binary Strings
+
+Attempts:             2
+Failed attempts:      1
+Successful attempts:  1
+Final status:         solved
+Language:             Java
+Successful runtime:   488 ms
+Successful memory:    59,536 KB
+Accepted timestamp:   2026-03-04T15:29:03Z
+```
+
+And approximately:
+
+```text
+time from first recorded attempt to accepted submission = 62 seconds
+```
+
+Note that this is **not necessarily equivalent to actual time spent solving**. It only measures the interval between the first submission returned and the accepted submission.
+
+---
+
+# 17. Contribution Calendar Semantics
+
+A critical product decision:
+
+## Do NOT count every submission as a contribution.
+
+For the example above:
+
+```text
+15:28:01 → runtime_error
+15:29:03 → correct_answer
+```
+
+Counting submissions would produce:
+
+```text
+March 4 → 2 contributions
+```
+
+That would make the graph measure attempts rather than actual solved problems.
+
+Instead, the primary contribution metric should be:
+
+> **Number of distinct problems successfully solved on that date.**
+
+Therefore:
+
+```text
+March 4, 2026
+Problems solved = 1
+```
+
+The failed attempt remains useful for secondary statistics.
+
+---
+
+# 18. Suggested Definition of "Solved Date"
+
+For each problem:
+
+1. Fetch all historical submissions.
+2. Select submissions where:
+
+```json
+"status": "correct_answer"
+```
+
+3. Determine the earliest accepted submission.
+4. Use its:
+
+```json
+"created_at"
+```
+
+as the problem's solved timestamp.
+5. Count that problem exactly once in the contribution calendar.
+
+Pseudo-code:
+
+```javascript
+const accepted = submissions
+  .filter(s => s.attributes.status === "correct_answer")
+  .sort(
+    (a, b) =>
+      new Date(a.attributes.created_at) -
+      new Date(b.attributes.created_at)
+  );
+
+if (accepted.length > 0) {
+  const solvedAt = accepted[0].attributes.created_at;
+}
+```
+
+This prevents repeated accepted submissions from artificially inflating the graph.
+
+---
+
+# 19. Timezone Handling
+
+Scaler returns timestamps like:
+
+```text
+2026-03-04T15:29:03.000Z
+```
+
+The trailing:
+
+```text
+Z
+```
+
+means UTC.
+
+The contribution calendar should generally group activity according to the student's local date, not blindly by UTC date.
+
+For an Indian user:
+
+```text
+UTC → Asia/Kolkata
+```
+
+For example:
+
+```text
+2026-03-04T20:00:00Z
+```
+
+is:
+
+```text
+2026-03-05 01:30 IST
+```
+
+Therefore grouping the raw UTC date would incorrectly place that contribution on March 4 instead of March 5.
+
+Implementation should convert timestamps to the appropriate local timezone before determining the contribution date.
+
+---
+
+# 20. Data Available Per Submission
+
+The discovered submission object gives considerably more information than merely whether a problem was solved.
+
+Fields include:
+
+| Field | Meaning / Potential Use |
+|---|---|
+| `id` | Unique submission identifier |
+| `submission_content` | Submitted answer/code |
+| `created_at` | Exact historical submission timestamp |
+| `programming_language` | Language used |
+| `programming_language_id` | Scaler language identifier |
+| `time` | Runtime |
+| `memory` | Memory consumption |
+| `status` | Submission result |
+| `time_unit` | Runtime unit |
+| `memory_unit` | Memory unit |
+| `score` | Score |
+| `logs` | Execution/submission logs when available |
+| `lab_session_log` | Lab-related information when available |
+| `submission_download_url` | Download URL when available |
+
+Not every field is populated for every problem type.
+
+For MCQ/MSQ problems, for example:
+
+```json
+"programming_language": null,
+"programming_language_id": 0,
+"time": 0,
+"memory": 0
+```
+
+Therefore analytics code must handle null/zero values correctly.
+
+---
+
+# 21. Submission Statuses Observed
+
+At least these statuses were directly observed:
+
+```text
+correct_answer
+runtime_error
+```
+
+There may be others, likely including statuses for:
+
+- wrong answers
+- compilation errors
+- time limit exceeded
+- memory limit exceeded
+- other judge states
+
+These should be discovered naturally during implementation instead of hard-coding assumptions about every possible Scaler status immediately.
+
+For contribution purposes, the known success state is:
+
+```text
+correct_answer
+```
+
+---
+
+# 22. MCQ/MSQ Historical Submission Support
+
+Historical submission timestamps are not limited to coding problems.
+
+The earlier `Copy types` problem returned:
+
+```json
+{
+  "id": "293112145",
+  "type": "user_submission",
+  "attributes": {
+    "id": 293112145,
+    "submission_content": "[\"c1 represents shallow copy and c2 represents deep copy\", \"If arr and c1 are printed after line 4 and 7 respectively, they would have printed 12 as first element.\"]",
+    "created_at": "2026-06-10T15:08:23.000Z",
+    "programming_language": null,
+    "programming_language_id": 0,
+    "time": 0,
+    "memory": 0,
+    "status": "correct_answer",
+    "score": 0
+  }
+}
+```
+
+Therefore the activity graph can potentially include:
+
+```text
+Coding problems
++
+MCQs
++
+MSQs
++
+other problem types represented through the same submission system
+```
+
+This is important.
+
+The graph does not have to be limited to programming submissions.
+
+---
+
+# 23. Current Scaler UI Already Knows Aggregate Progress
+
+Examples observed:
+
+```text
+Problems Solved: 48 / 49
+```
+
+and:
+
+```text
+Assignment: 6 / 6
+Additional Problems: 2 / 3
+Problems Solved: 8 / 9
+```
+
+These aggregate counts can be useful for:
+
+- sanity-checking reconstructed history
+- detecting missed problems/tests
+- validating synchronization
+
+Example:
+
+```text
+Scaler UI says: 48 solved
+
+Scaler++ reconstruction says: 42 solved
+```
+
+This would indicate that the crawler/discovery process probably missed six problems.
+
+Therefore aggregate Scaler counts can act as validation signals.
+
+---
+
+# 24. Why We Know Submission Timing Exists Server-Side
+
+There was an earlier real-world clue before the API was found.
+
+During class, a teacher assigned problems and shortly afterward could identify which students had solved them by looking at a submission chart.
+
+That strongly suggested Scaler had server-side submission timing/activity information.
+
+The API investigation subsequently confirmed this directly through:
+
+```json
+"created_at"
+```
+
+in user submission records.
+
+---
+
+# 25. Current Understanding of the Scaler Data Hierarchy
+
+Based on everything observed, the useful conceptual hierarchy is approximately:
+
+```text
+Student
+│
+├── Semester / Term
+│
+│   └── Academy Module
+│       │
+│       ├── Mentee Academy Topic / Class
+│       │   │
+│       │   ├── Session
+│       │   ├── Mentee Lessons
+│       │   └── Assignment / Additional Problems
+│       │
+│       └── ...
+│
+├── Test
+│   │
+│   └── Problems
+│       │
+│       └── Problem
+│           │
+│           └── User Submissions
+│               │
+│               ├── created_at
+│               ├── status
+│               ├── score
+│               ├── language
+│               ├── runtime
+│               └── memory
+```
+
+The most important pipeline for the activity feature is:
+
+```text
+Curriculum
+    ↓
+Modules
+    ↓
+Classes / Topics
+    ↓
+Assignments / Tests
+    ↓
+Test IDs
+    ↓
+Problems
+    ↓
+Problem IDs
+    ↓
+User Submissions
+    ↓
+created_at + status
+    ↓
+Historical activity
+```
+
+---
+
+# 26. Known API Pattern Summary
+
+## Test problems
+
+```text
+GET /api/v2/tests/{test_id}/problems
+```
+
+Examples:
+
+```text
+/api/v2/tests/1254633/problems
+/api/v2/tests/1226161/problems
+```
+
+---
+
+## Historical submissions for a problem
+
+```text
+GET /api/v2/tests/{test_id}/problems/{problem_id}/user_submissions?page=1&per_page=100
+```
+
+Example:
+
+```text
+/api/v2/tests/1254633/problems/15992/user_submissions?page=1&per_page=100
+```
+
+These are currently the two most important endpoint patterns for the contribution feature.
+
+---
+
+# 27. Authentication Model — Current Observation
+
+These APIs were accessed while logged into Scaler through the normal website.
+
+The browser was already authenticated.
+
+Therefore the endpoints appear usable from the authenticated Scaler session.
+
+We have **not yet established**:
+
+- whether there is a documented public API
+- whether these internal endpoints are stable
+- whether CSRF headers are required for every endpoint
+- whether cookies alone are sufficient for all GET requests
+- whether extension content scripts can fetch all endpoints directly
+- whether host permissions are required
+- whether Scaler changes endpoint structures frequently
+- what rate limits exist
+- whether aggressive crawling could trigger protection
+
+These are implementation questions that still need to be tested.
+
+---
+
+# 28. Important Warning: These Appear to Be Internal APIs
+
+The endpoints discovered through DevTools appear to be APIs used by the Scaler frontend.
+
+That does **not** mean they are a stable public API contract.
+
+Therefore Scaler++ should treat them as potentially unstable.
+
+Implementation should isolate Scaler API logic behind an adapter layer.
+
+Bad architecture:
+
+```javascript
+// API URLs scattered everywhere in UI components
+fetch("/api/v2/tests/...")
+```
+
+Better:
+
+```text
+src/
+  scaler-api/
+    curriculum.js
+    classes.js
+    tests.js
+    submissions.js
+```
+
+or:
+
+```text
+src/
+  services/
+    scaler/
+      modules.ts
+      classes.ts
+      tests.ts
+      problems.ts
+      submissions.ts
+```
+
+Then if Scaler changes an endpoint, only the adapter layer needs modification.
+
+---
+
+# 29. Historical Backfill Strategy
+
+The extension should distinguish between:
+
+```text
+INITIAL BACKFILL
+```
+
+and:
+
+```text
+INCREMENTAL SYNC
+```
+
+## Initial backfill
+
+On first setup:
+
+```text
+Discover semesters
+    ↓
+Discover modules
+    ↓
+Discover classes/topics
+    ↓
+Discover tests
+    ↓
+Discover problems
+    ↓
+Fetch historical submissions
+    ↓
+Build local activity database
+```
+
+This may involve many requests.
+
+Therefore it should happen carefully and progressively.
+
+---
+
+# 30. Incremental Sync
+
+After the historical backfill is complete, Scaler++ should **not repeat the entire crawl on every page load**.
+
+Instead:
+
+```text
+Initial installation:
+    expensive historical backfill
+
+Normal usage:
+    lightweight incremental sync
+```
+
+Possible strategy:
+
+```text
+lastSync = 2026-07-27T...
+
+on future sync:
+
+    inspect current/recent classes
+    inspect current/recent tests
+    fetch relevant submissions
+    merge unseen submission IDs
+```
+
+Submission IDs can help deduplicate records.
+
+---
+
+# 31. Local Database / Cache
+
+Scaler++ should cache normalized data locally.
+
+Possible conceptual structure:
+
+```json
+{
+  "version": 1,
+  "lastSync": "2026-07-27T...",
+  "submissions": {},
+  "problems": {},
+  "tests": {},
+  "activityByDate": {}
+}
+```
+
+A submission could be normalized as:
+
+```json
+{
+  "submissionId": 285022548,
+  "testId": 1226161,
+  "problemId": "...",
+  "createdAt": "2026-03-04T15:29:03.000Z",
+  "status": "correct_answer",
+  "language": "Java 8 (array support)",
+  "runtime": 488,
+  "runtimeUnit": "ms",
+  "memory": 59536,
+  "memoryUnit": "KB",
+  "score": 300
+}
+```
+
+Avoid storing huge duplicate API payloads when only normalized fields are needed.
+
+---
+
+# 32. Privacy Consideration: Do We Need to Store Submission Code?
+
+The API exposes:
+
+```text
+submission_content
+```
+
+including complete source code.
+
+The contribution/statistics feature generally does **not need to persist source code**.
+
+Therefore a privacy-conscious implementation should probably store:
+
+```text
+submission ID
+problem ID
+test ID
+timestamp
+status
+language
+runtime
+memory
+score
+```
+
+but discard:
+
+```text
+submission_content
+```
+
+unless a future feature explicitly requires it.
+
+This reduces local storage usage and unnecessary retention of user code.
+
+---
+
+# 33. Export Data Requirement
+
+Scaler++ must provide an:
+
+```text
+Export Data
+```
+
+feature.
+
+Reason:
+
+The extension will maintain locally cached/derived analytics.
+
+If the user needs to:
+
+- uninstall the extension
+- reinstall the browser
+- switch browser profiles
+- move to another computer
+- reset extension storage
+
+they should not lose the reconstructed/cache data unnecessarily.
+
+The user should be able to export it before uninstalling.
+
+---
+
+# 34. Suggested Export Format
+
+JSON is the best primary backup format.
+
+Example:
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-07-27T...",
+  "scalerPlus": {
+    "submissions": [],
+    "problems": [],
+    "tests": [],
+    "activity": {},
+    "settings": {}
+  }
+}
+```
+
+Suggested filename:
+
+```text
+scaler-plus-backup-2026-07-27.json
+```
+
+Later we should also implement:
+
+```text
+Import Data
+```
+
+so backups can actually be restored.
+
+Export without import would only solve half the problem.
+
+---
+
+# 35. Export vs Reconstructable Data
+
+Some data can theoretically be downloaded again from Scaler.
+
+For example:
+
+```text
+historical submissions
+```
+
+However, exported backups are still valuable because:
+
+1. internal Scaler APIs may change
+2. old curriculum endpoints may stop exposing something
+3. the extension may derive statistics not directly stored by Scaler
+4. locally recorded events may eventually exist
+5. rebuilding everything could require many API requests
+6. user preferences/settings need persistence
+
+Therefore export/import should still exist even if historical backfill is available.
+
+---
+
+# 36. Contribution Calendar Data Model
+
+Recommended derived structure:
+
+```json
+{
+  "2026-03-04": {
+    "problemsSolved": 1,
+    "attempts": 2,
+    "successfulSubmissions": 1,
+    "failedSubmissions": 1
+  }
+}
+```
+
+Then rendering becomes trivial.
+
+Example intensity thresholds could eventually be something like:
+
+```text
+0 problems → empty
+1 problem  → level 1
+2 problems → level 2
+3-4        → level 3
+5+         → level 4
+```
+
+The exact thresholds should be chosen after seeing realistic student activity distributions.
+
+Do not hard-code arbitrary GitHub-like thresholds before analyzing actual data.
+
+---
+
+# 37. Statistics We Can Potentially Derive
+
+Because historical submission records exist, Scaler++ can potentially calculate:
+
+### Problem-solving
+
+```text
+Total problems solved
+Total problems attempted
+Total submissions
+Successful submissions
+Failed submissions
+Average attempts per solved problem
+First-attempt solves
+First-attempt solve percentage
+```
+
+### Time/activity
+
+```text
+Active days
+Current streak
+Longest streak
+Most active day
+Problems solved today
+Problems solved this week
+Problems solved this month
+Problems solved this year
+Average problems per active day
+```
+
+### Programming
+
+```text
+Languages used
+Most-used language
+Accepted submissions by language
+Runtime distributions
+Memory distributions
+```
+
+### Difficulty
+
+If problem metadata provides difficulty:
+
+```text
+Very Easy solved
+Easy solved
+Medium solved
+Hard solved
+etc.
+```
+
+### Scores
+
+```text
+Total/average score
+Score distributions
+Maximum scores
+```
+
+### Attempts
+
+```text
+Problems solved first try
+Problems requiring 2 attempts
+Problems requiring 3+ attempts
+Most-attempted problem
+Failed submissions before acceptance
+```
+
+Not every statistic should necessarily appear on the dashboard. This is simply what the discovered data may enable.
+
+---
+
+# 38. Potential Class Statistics
+
+The class/session API also exposes data such as:
+
+```json
+"start_time": "2026-02-02T05:00:00.000Z",
+"duration": 120,
+"status": "completed",
+"aggregate_attendance": 73.458
+```
+
+This means a future version could potentially display:
+
+```text
+Classes attended
+Attendance %
+Lecture completion
+Sessions completed
+Lecture activity
+Assignment completion
+Additional-problem completion
+```
+
+However:
+
+> Do not mix this into the initial contribution-calendar implementation unless necessary.
+
+The first feature should remain focused.
+
+---
+
+# 39. Contribution Calendar Scope
+
+Recommended V1:
+
+```text
+Problem Solving Activity
+```
+
+where one contribution means:
+
+```text
+one distinct problem first successfully solved
+```
+
+Include:
+
+```text
+Assignments
+Additional Problems
+Coding problems
+MCQ/MSQ problems
+```
+
+provided they expose the same usable submission history.
+
+Do **not** initially count:
+
+```text
+watching lectures
+opening pages
+attendance
+viewing notes
+failed submissions
+number of clicks
+time spent on Scaler
+```
+
+Those are different activity dimensions and would make the graph meaningless if mixed together.
+
+---
+
+# 40. Why Failed Attempts Still Matter
+
+Failed submissions should not increase the primary solved-problem contribution count.
+
+But they remain valuable analytics.
+
+Example:
+
+```text
+Problem: Add Binary Strings
+
+Attempts: 2
+Failures: 1
+Accepted: 1
+```
+
+Possible dashboard statistics:
+
+```text
+Problems solved:       143
+Total attempts:        219
+First-try solves:       91
+Failed attempts:       76
+```
+
+This provides useful information without corrupting the meaning of the contribution graph.
+
+---
+
+# 41. Deduplication Requirements
+
+The extension must avoid double counting.
+
+Useful unique identifiers include:
+
+```text
+submission ID
+test ID
+problem ID
+```
+
+For raw submissions:
+
+```text
+submission_id
+```
+
+should generally be unique.
+
+For solved-problem contributions, use a key conceptually similar to:
+
+```text
+testId + problemId
+```
+
+and determine its earliest successful submission.
+
+Do not assume problem IDs are globally unique until verified.
+
+Using the pair is safer.
+
+---
+
+# 42. Example Normalization Algorithm
+
+Conceptually:
+
+```javascript
+function normalizeSubmission(raw, testId, problemId) {
+  const a = raw.attributes;
+
+  return {
+    submissionId: a.id,
+    testId,
+    problemId,
+
+    createdAt: a.created_at,
+    status: a.status,
+
+    language: a.programming_language,
+    languageId: a.programming_language_id,
+
+    runtime: a.time,
+    runtimeUnit: a.time_unit,
+
+    memory: a.memory,
+    memoryUnit: a.memory_unit,
+
+    score: a.score
+  };
+}
+```
+
+Then:
+
+```javascript
+function getFirstAcceptedSubmission(submissions) {
+  return submissions
+    .filter(s => s.status === "correct_answer")
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt) -
+        new Date(b.createdAt)
+    )[0] ?? null;
+}
+```
+
+---
+
+# 43. Example Activity Aggregation
+
+Conceptually:
+
+```javascript
+const activity = {};
+
+for (const problem of problems) {
+  const accepted = getFirstAcceptedSubmission(problem.submissions);
+
+  if (!accepted) continue;
+
+  const date = convertToLocalDate(accepted.createdAt);
+
+  activity[date] ??= {
+    problemsSolved: 0,
+    attempts: 0,
+    successfulSubmissions: 0,
+    failedSubmissions: 0
+  };
+
+  activity[date].problemsSolved++;
+}
+```
+
+Submission-level statistics can then be aggregated separately.
+
+---
+
+# 44. Validation Strategy
+
+Historical reconstruction should be validated against the Scaler UI.
+
+Example:
+
+Scaler UI:
+
+```text
+Problems Solved
+48 / 49
+```
+
+Reconstructed data:
+
+```text
+47 solved
+```
+
+That means something is missing.
+
+Potential causes:
+
+```text
+missed test
+missed module
+missed semester
+pagination bug
+additional problems omitted
+API returned incomplete history
+problem-ID collision
+status interpretation bug
+```
+
+The extension should ideally be able to detect such mismatches during development.
+
+---
+
+# 45. API Load / Rate-Limit Concern
+
+Historical reconstruction could become request-heavy.
+
+Imagine:
+
+```text
+200 tests
+×
+10 problems each
+=
+2,000 problem submission requests
+```
+
+This should **not** be fired simultaneously.
+
+Do not do:
+
+```javascript
+await Promise.all(
+  thousandsOfProblems.map(fetchSubmissions)
+);
+```
+
+That could hammer Scaler's backend and potentially trigger rate limiting.
+
+Instead use:
+
+```text
+limited concurrency
+caching
+incremental sync
+request delays if necessary
+retry/backoff
+```
+
+The exact safe concurrency should be determined experimentally and conservatively.
+
+---
+
+# 46. Recommended Sync Architecture
+
+Conceptually:
+
+```text
+Scaler++ Sync Engine
+│
+├── Discovery
+│   ├── discoverSemesters()
+│   ├── discoverModules()
+│   ├── discoverClasses()
+│   ├── discoverTests()
+│   └── discoverProblems()
+│
+├── Submission Sync
+│   ├── fetchSubmissions()
+│   ├── handlePagination()
+│   └── deduplicate()
+│
+├── Storage
+│   ├── saveTests()
+│   ├── saveProblems()
+│   ├── saveSubmissions()
+│   └── saveSyncState()
+│
+├── Analytics
+│   ├── buildContributionCalendar()
+│   ├── calculateStreaks()
+│   ├── calculateAttemptStats()
+│   └── calculateLanguageStats()
+│
+└── Backup
+    ├── exportData()
+    └── importData()
+```
+
+---
+
+# 47. Recommended Separation of Raw and Derived Data
+
+Do not store only the final calendar.
+
+Bad:
+
+```json
+{
+  "2026-03-04": 1,
+  "2026-03-05": 4
+}
+```
+
+If analytics logic changes later, there would be no raw information to recompute statistics.
+
+Instead maintain normalized raw metadata:
+
+```text
+submissions
+problems
+tests
+```
+
+and derive:
+
+```text
+calendar
+streaks
+stats
+```
+
+from it.
+
+Conceptually:
+
+```text
+Scaler API
+   ↓
+Normalized local records
+   ↓
+Analytics engine
+   ↓
+Derived statistics
+   ↓
+UI
+```
+
+---
+
+# 48. Storage Layers
+
+A sensible browser-extension design may use:
+
+```text
+IndexedDB
+```
+
+for larger historical datasets.
+
+Potentially use:
+
+```text
+chrome.storage.local
+```
+
+for:
+
+```text
+settings
+last-sync state
+small metadata
+feature flags
+```
+
+and IndexedDB for:
+
+```text
+submissions
+problems
+tests
+historical records
+```
+
+This decision should be made based on expected dataset size.
+
+Do not blindly put thousands of submission objects containing source code into `localStorage`.
+
+---
+
+# 49. The Original Fallback Plan
+
+Before discovering historical timestamps, the fallback plan was:
+
+> Start recording activity locally from the day Scaler++ is installed.
+
+Conceptually:
+
+```text
+Extension installed: July 27
+
+July 27 onward:
+    observe submissions
+    store locally
+    construct contribution graph
+```
+
+This is now only a fallback.
+
+The preferred strategy is:
+
+```text
+Historical Scaler API backfill
++
+future incremental synchronization
+```
+
+However, local tracking can still be useful as redundancy if APIs later change.
+
+---
+
+# 50. Hybrid Strategy
+
+A robust long-term architecture could use both:
+
+```text
+SERVER HISTORY
++
+LOCAL OBSERVATION
+```
+
+Server history gives:
+
+```text
+activity before extension installation
+```
+
+Local observation gives:
+
+```text
+immediate new events
+backup against endpoint changes
+potential metadata unavailable historically
+```
+
+Then synchronize/merge both using submission IDs and problem IDs.
+
+---
+
+# 51. UI Placement
+
+The proposed contribution graph should appear on the main Scaler dashboard/practice screen.
+
+The page currently contains problem cards near the top and a large unused center region.
+
+During active terms, class cards may also occupy part of the page, but significant space remains.
+
+Potential structure:
+
+```text
+┌──────────────────────────────────────────────────────┐
+│ Existing class / practice cards                     │
+└──────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────┐
+│ Problem Solving Activity                            │
+│                                                      │
+│   GitHub-style contribution calendar                │
+│                                                      │
+│   Less □ ░ ▒ ▓ ■ More                               │
+└──────────────────────────────────────────────────────┘
+
+┌──────────────┬──────────────┬──────────────┐
+│ 143 solved   │ 12 day       │ 219 attempts │
+│ this year    │ streak       │ total        │
+└──────────────┴──────────────┴──────────────┘
+```
+
+The design should visually fit Scaler's existing UI rather than looking like an unrelated embedded application.
+
+---
+
+# 52. This Feature Is More Than a GitHub Clone
+
+The GitHub graph itself is not technically novel.
+
+The useful part is combining:
+
+```text
+historical Scaler data
++
+automatic reconstruction
++
+problem-solving analytics
++
+streak tracking
++
+zero manual logging
+```
+
+The value is convenience and visibility.
+
+The user should install Scaler++, open Scaler, and eventually see:
+
+```text
+"Here is your historical problem-solving activity."
+```
+
+without manually entering past problems.
+
+---
+
+# 53. What Has Been PROVEN
+
+The following statements are supported by actual observed API responses.
+
+### Proven
+
+- Scaler has internal APIs used by its frontend.
+- Tests have IDs.
+- Tests expose problem lists.
+- Problems have IDs.
+- User submission history can be requested per test/problem.
+- Historical submissions contain exact `created_at` timestamps.
+- Submission history includes successful and failed attempts.
+- `correct_answer` represents a successful submission in observed data.
+- Coding submissions can contain programming language information.
+- Coding submissions can contain runtime information.
+- Coding submissions can contain memory information.
+- Submission objects can contain score information.
+- MCQ/MSQ submissions also expose historical timestamps.
+- Curriculum modules have IDs.
+- Classes/topics have IDs.
+- Class/session data exposes dates and attendance-related information.
+- Assignment test IDs are discoverable.
+- `batch_lesson.test_id` can be null even when an assignment exists.
+- Historical activity from before extension installation is technically available for at least the tested cases.
+
+---
+
+# 54. What Has NOT Yet Been Proven
+
+Do not confuse these with confirmed facts.
+
+### Still needs investigation
+
+- Automatic discovery of **every** historical test across all semesters.
+- Whether every assignment type exposes the same endpoints.
+- Whether all Additional Problems use the same API pattern.
+- Whether contests use the same API pattern.
+- Whether skill contests use different APIs.
+- Whether every historical semester remains accessible indefinitely.
+- Whether problem IDs are globally unique.
+- Exact API authentication requirements from an extension.
+- Whether requests work directly from an extension service worker.
+- CORS behavior.
+- Required Chrome host permissions.
+- Rate limits.
+- Endpoint stability.
+- Safe request concurrency.
+- Exact pagination semantics across all endpoints.
+- Every possible submission status.
+- Whether deleted/archived problems remain queryable.
+- Whether old attempts can ever be omitted.
+- Whether all historical solved counts can be reconstructed exactly.
+- Whether the same problem can appear in multiple tests.
+- Whether duplicate/reused problems should count once or multiple times.
+- Whether Scaler's internal API terms permit all intended extension behavior.
+
+These should remain explicit open questions.
+
+---
+
+# 55. Important Engineering Rule
+
+Do not build the UI first.
+
+The difficult part is not drawing green squares.
+
+The difficult part is building a reliable pipeline:
+
+```text
+discover
+→ fetch
+→ paginate
+→ normalize
+→ deduplicate
+→ cache
+→ validate
+→ aggregate
+→ render
+```
+
+A contribution grid can be built quickly once reliable normalized activity data exists.
+
+The sync engine is the actual engineering work.
+
+---
+
+# 56. Recommended Implementation Order
+
+## Phase 1 — API Client
+
+Build functions for:
+
+```text
+getTestProblems(testId)
+getProblemSubmissions(testId, problemId)
+```
+
+Validate them against the IDs already discovered.
+
+---
+
+## Phase 2 — Historical reconstruction for ONE test
+
+Use:
+
+```text
+test_id = 1226161
+```
+
+Fetch all its problems.
+
+For every problem:
+
+```text
+fetch submissions
+find earliest correct_answer
+record solved date
+```
+
+Generate:
+
+```json
+{
+  "2026-03-04": 1,
+  "...": 2
+}
+```
+
+No UI required yet.
+
+---
+
+## Phase 3 — Automatic test discovery
+
+Determine how to go from:
+
+```text
+semester
+→ module
+→ classes
+→ assignment
+→ test ID
+```
+
+without manually opening every class.
+
+This is the largest remaining discovery task.
+
+---
+
+## Phase 4 — Historical backfill
+
+Traverse all available curriculum history.
+
+Store normalized data locally.
+
+---
+
+## Phase 5 — Validation
+
+Compare reconstructed totals against Scaler's displayed aggregate counts.
+
+Fix missing branches.
+
+---
+
+## Phase 6 — Contribution calendar
+
+Build the actual dashboard component.
+
+---
+
+## Phase 7 — Analytics
+
+Add:
+
+```text
+streak
+total solved
+active days
+attempt statistics
+language statistics
+etc.
+```
+
+---
+
+## Phase 8 — Incremental synchronization
+
+Avoid repeating historical backfills.
+
+---
+
+## Phase 9 — Export / Import
+
+Implement backup and restoration.
+
+---
+
+# 57. First Test Dataset for Development
+
+Use the known test:
+
+```text
+test_id = 1226161
+```
+
+This corresponds to the assignment associated with:
+
+```text
+Bit Manipulations 1
+```
+
+Known assignment state:
+
+```text
+Assignment:          6 / 6
+Additional Problems: 2 / 3
+Problems Solved:     8 / 9
+```
+
+This is a good test case because it contains:
+
+```text
+coding problems
+non-coding problems
+multiple submissions
+failed submissions
+successful submissions
+historical timestamps
+```
+
+---
+
+# 58. Known Historical Example
+
+Use `Add Binary Strings` as a regression test.
+
+Expected history:
+
+```text
+2026-03-04T15:28:01.000Z
+runtime_error
+
+2026-03-04T15:29:03.000Z
+correct_answer
+```
+
+Expected analytics:
+
+```text
+attempts             = 2
+failed attempts      = 1
+successful attempts  = 1
+problem solved       = true
+first accepted time  = 2026-03-04T15:29:03.000Z
+```
+
+Expected contribution result after local timezone conversion:
+
+```text
+2026-03-04 → +1 solved problem
+```
+
+for Asia/Kolkata, because both timestamps still fall on March 4 IST.
+
+This should become a useful regression test when implementing the analytics engine.
+
+---
+
+# 59. Another Known Test Dataset
+
+Earlier test:
+
+```text
+test_id = 1254633
+problem_id = 15992
+```
+
+Endpoint:
+
+```text
+/api/v2/tests/1254633/problems/15992/user_submissions?page=1&per_page=100
+```
+
+Observed historical accepted submission:
+
+```text
+2026-06-10T15:08:23.000Z
+```
+
+Status:
+
+```text
+correct_answer
+```
+
+Problem:
+
+```text
+Copy types
+```
+
+This can serve as a second regression test, particularly for non-programming/MSQ submissions.
+
+---
+
+# 60. Known IDs From Discovery
+
+Keep these for development/testing.
+
+```text
+Module:
+Fundamental DSA = 466
+
+Class/topic:
+Bit Manipulations 1 = 506679
+
+Mentee lesson:
+566324496
+
+Batch lesson:
+5641239
+
+Session:
+1003034
+
+Academy topic:
+134273
+
+Assignment test:
+1226161
+
+Earlier Data Analytics test:
+1254633
+
+Earlier problem:
+15992
+```
+
+These IDs are examples from one student's Scaler account and should **never be hard-coded as general application IDs**.
+
+They are only useful for debugging/regression testing.
+
+---
+
+# 61. Security / Account Isolation
+
+Scaler++ must never assume IDs discovered from one user apply to another user.
+
+Everything should be dynamically discovered from the currently authenticated Scaler account.
+
+Do not ship code such as:
+
+```javascript
+const testId = 1226161;
+```
+
+except temporary development/testing code.
+
+Production logic must derive IDs dynamically.
+
+---
+
+# 62. Failure Handling
+
+Internal APIs can fail.
+
+The extension should eventually handle:
+
+```text
+401 / unauthenticated
+403 / forbidden
+404 / endpoint changed
+429 / rate limited
+5xx / server failure
+network offline
+malformed response
+partial sync
+```
+
+A failed sync should **not delete existing local history**.
+
+Preferred behavior:
+
+```text
+existing local database
++
+successful new records
+```
+
+rather than:
+
+```text
+clear everything
+→ fetch
+→ API fails
+→ user now has no data
+```
+
+Use transactional/update-safe synchronization.
+
+---
+
+# 63. Sync State
+
+Store synchronization metadata such as:
+
+```json
+{
+  "sync": {
+    "lastAttemptAt": "...",
+    "lastSuccessfulSyncAt": "...",
+    "backfillCompleted": true,
+    "schemaVersion": 1
+  }
+}
+```
+
+Potentially track progress:
+
+```json
+{
+  "backfill": {
+    "modulesProcessed": 4,
+    "testsProcessed": 31,
+    "problemsProcessed": 287
+  }
+}
+```
+
+This allows interrupted backfills to resume instead of restarting.
+
+---
+
+# 64. Contribution Tooltip
+
+Each square could eventually display useful detail.
+
+Example:
+
+```text
+March 4, 2026
+
+1 problem solved
+2 submissions
+1 failed attempt
+
+Add Binary Strings
+```
+
+If multiple problems were solved:
+
+```text
+March 12, 2026
+
+4 problems solved
+7 submissions
+3 failed attempts
+```
+
+This makes the calendar useful instead of purely decorative.
+
+---
+
+# 65. Streak Definition
+
+Recommended:
+
+```text
+An active day =
+at least one distinct problem successfully solved.
+```
+
+Therefore:
+
+```text
+0 solved → inactive
+1+ solved → active
+```
+
+Current streak:
+
+```text
+number of consecutive active days ending today
+```
+
+Potential alternative behavior:
+
+If today has no activity yet, some products preserve a streak through yesterday until the day ends.
+
+This UX detail should be decided later.
+
+Longest streak:
+
+```text
+maximum number of consecutive active dates
+```
+
+---
+
+# 66. Do Not Reward Spam
+
+If a student submits the same correct solution repeatedly:
+
+```text
+correct
+correct
+correct
+correct
+```
+
+the contribution graph should still show:
+
+```text
+1 problem solved
+```
+
+not four.
+
+Likewise:
+
+```text
+wrong
+wrong
+runtime_error
+correct
+```
+
+still represents:
+
+```text
+1 solved problem
+```
+
+The attempts belong in secondary analytics.
+
+---
+
+# 67. Potential Duplicate Problem Issue
+
+A future investigation must determine whether the same Scaler problem can appear in multiple tests.
+
+If yes, we need a product decision:
+
+### Option A
+
+Count each test/problem occurrence separately.
+
+### Option B
+
+Count the underlying problem only once globally.
+
+The correct answer depends on Scaler's data model.
+
+Until global uniqueness/reuse is investigated, use:
+
+```text
+testId + problemId
+```
+
+as the safe technical identity.
+
+---
+
+# 68. Performance Principle
+
+The dashboard should **never wait for a complete historical crawl before rendering**.
+
+Preferred UX:
+
+```text
+Scaler dashboard loads
+    ↓
+cached contribution graph appears immediately
+    ↓
+background sync starts
+    ↓
+new data merged
+    ↓
+graph updates
+```
+
+Not:
+
+```text
+dashboard loads
+    ↓
+2,000 API requests
+    ↓
+user waits
+    ↓
+graph finally appears
+```
+
+Cache-first rendering is essential.
+
+---
+
+# 69. Backup Principle
+
+Because Scaler++ will accumulate locally normalized and derived data:
+
+```text
+Export Data
+```
+
+should be a first-class feature, not an afterthought.
+
+Recommended settings actions:
+
+```text
+Data
+
+Last synced: ...
+Historical backfill: Complete
+
+[ Sync Now ]
+
+[ Export Data ]
+[ Import Data ]
+
+[ Rebuild Analytics ]
+[ Clear Local Data ]
+```
+
+`Clear Local Data` should require confirmation.
+
+---
+
+# 70. Architecture Summary
+
+The complete intended architecture now looks like:
+
+```text
+                    SCALER WEBSITE
+                          │
+                          │ authenticated internal APIs
+                          ▼
+                ┌─────────────────────┐
+                │ Scaler API Adapter  │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │ Discovery Engine    │
+                │                     │
+                │ semesters           │
+                │ modules             │
+                │ classes             │
+                │ tests               │
+                │ problems            │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │ Submission Sync     │
+                │                     │
+                │ pagination          │
+                │ retry               │
+                │ deduplication       │
+                │ incremental sync    │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │ Local Data Store    │
+                │                     │
+                │ tests               │
+                │ problems            │
+                │ submissions         │
+                │ sync state          │
+                └──────────┬──────────┘
+                           │
+                    ┌──────┴──────┐
+                    ▼             ▼
+          ┌─────────────────┐   ┌─────────────────┐
+          │ Analytics       │   │ Backup          │
+          │                 │   │                 │
+          │ contributions   │   │ export          │
+          │ streaks         │   │ import          │
+          │ attempts        │   │ migration       │
+          │ languages       │   │                 │
+          └────────┬────────┘   └─────────────────┘
+                   │
+                   ▼
+          ┌─────────────────────┐
+          │ Scaler++ Dashboard  │
+          │                     │
+          │ Contribution graph  │
+          │ Stats               │
+          │ Streaks             │
+          │ Tooltips            │
+          └─────────────────────┘
+```
+
+---
+
+# 71. Core Discovery in One Sentence
+
+**Scaler stores and exposes historical per-problem user submissions containing exact `created_at` timestamps and result statuses, which means Scaler++ can potentially reconstruct a student's historical problem-solving activity from before the extension was installed and use it to generate a GitHub-style contribution calendar.**
+
+---
+
+# 72. Next Task
+
+Do **not** continue manually checking random submission endpoints.
+
+We already proved the most important hypothesis.
+
+The next investigation is:
+
+> **How can Scaler++ automatically discover every relevant historical assignment/test ID across all available semesters, modules and classes without the user manually opening each assignment?**
+
+Once that is solved, the pipeline becomes:
+
+```text
+Auto-discover tests
+        ↓
+Fetch problems
+        ↓
+Fetch submissions
+        ↓
+Normalize
+        ↓
+Store locally
+        ↓
+Determine earliest successful submission per problem
+        ↓
+Convert timestamps to local dates
+        ↓
+Aggregate solved problems by date
+        ↓
+Build contribution calendar
+        ↓
+Calculate statistics
+        ↓
+Incrementally sync future activity
+        ↓
+Allow export/import
+```
+
+That is the next engineering milestone.
+
+---
+
+# 73. Discovery Status
+
+```text
+[✓] Historical submission timestamps exist
+[✓] Successful submissions identifiable
+[✓] Failed submissions identifiable
+[✓] Coding submissions supported
+[✓] MCQ/MSQ submissions supported
+[✓] Test → problems endpoint discovered
+[✓] Problem → submissions endpoint discovered
+[✓] Curriculum modules discoverable
+[✓] Classes/topics discoverable
+[✓] Session metadata discoverable
+[✓] Historical backfill appears technically possible
+
+[ ] Automatically discover every test
+[ ] Traverse every semester
+[ ] Verify Additional Problems
+[ ] Verify all problem types
+[ ] Verify contests
+[ ] Verify pagination thoroughly
+[ ] Verify extension authentication/CORS
+[ ] Determine safe request concurrency
+[ ] Implement normalized local database
+[ ] Implement backfill engine
+[ ] Validate reconstructed totals
+[ ] Implement contribution calendar
+[ ] Implement streak analytics
+[ ] Implement incremental synchronization
+[ ] Implement Export Data
+[ ] Implement Import Data
+```
+
+---
+
+# 74. Final Rule for Future Development
+
+Before changing the data model or making assumptions about Scaler's APIs, refer to this document.
+
+Separate facts into:
+
+```text
+OBSERVED
+```
+
+versus:
+
+```text
+ASSUMED / NOT YET VERIFIED
+```
+
+Do not turn an assumption into production logic merely because one endpoint happened to behave a certain way once.
+
+The strongest verified foundation is:
+
+```text
+test ID
+    ↓
+GET /api/v2/tests/{test_id}/problems
+    ↓
+problem ID
+    ↓
+GET /api/v2/tests/{test_id}/problems/{problem_id}/user_submissions
+    ↓
+submission.created_at
+submission.status
+    ↓
+historical solved date
+```
+
+Everything above this layer — especially automatic discovery of all historical tests — is the next problem to solve.
