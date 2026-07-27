@@ -2970,3 +2970,2030 @@ historical solved date
 ```
 
 Everything above this layer — especially automatic discovery of all historical tests — is the next problem to solve.
+
+
+
+
+# 75. Update — Automatic Historical Discovery Chain Confirmed
+
+> **Discovery update:** 27 July 2026  
+> **Status:** Major discovery milestone completed.
+>
+> After the original investigation was documented, further DevTools investigation successfully discovered the missing relationships required to automatically traverse from a Scaler curriculum class to its Assignment/Homework tests.
+>
+> We have now observed a complete API path from **trimester → modules → classes → tests → problems → historical submissions**.
+
+This removes one of the largest unknowns from the original investigation.
+
+---
+
+# 76. Test Configuration Endpoint
+
+When the Assignment tab for:
+
+```text
+Bit Manipulations 1
+```
+
+was opened, Scaler requested:
+
+```text
+GET https://www.scaler.com/api/v2/tests/1226161
+```
+
+General pattern:
+
+```text
+GET /api/v2/tests/{test_id}
+```
+
+For this assignment:
+
+```text
+test_id = 1226161
+```
+
+The response identified the test as:
+
+```json
+{
+  "id": 1226161,
+  "test_name": "Bit Manipulations 1 | Assignment",
+  "test_type": "academy_assignment"
+}
+```
+
+Therefore:
+
+```text
+1226161
+    =
+Bit Manipulations 1 | Assignment
+```
+
+---
+
+# 77. Test Configuration Contains Problem Information
+
+The `/api/v2/tests/{test_id}` response also contains:
+
+```text
+sections
+```
+
+with the problems belonging to the test.
+
+For test:
+
+```text
+1226161
+```
+
+the response contained:
+
+```text
+189    Add Binary Strings
+30956  Bit Operations - 1
+30993  Binary Addition
+30994  Bit Operations
+30997  Bit Operations - 5
+4105   Find nth Magic Number
+```
+
+Example object:
+
+```json
+{
+  "id": 189,
+  "solved": true,
+  "status": "solved",
+  "order": 1,
+  "title": "Add Binary Strings",
+  "section_number": "1",
+  "judge_type": "code",
+  "flag": false
+}
+```
+
+Another example:
+
+```json
+{
+  "id": 30956,
+  "solved": true,
+  "status": "solved",
+  "order": 2,
+  "title": "Bit Operations - 1",
+  "section_number": "1",
+  "judge_type": "objective",
+  "flag": false
+}
+```
+
+This means:
+
+```text
+GET /api/v2/tests/{test_id}
+```
+
+already provides a useful lightweight list of problems.
+
+However, the separate:
+
+```text
+GET /api/v2/tests/{test_id}/problems
+```
+
+endpoint provides richer problem metadata and remains useful.
+
+---
+
+# 78. Test Type Confirmed
+
+For test `1226161`, Scaler returned:
+
+```json
+"test_type": "academy_assignment"
+```
+
+Therefore this particular test is explicitly classified as an:
+
+```text
+academy_assignment
+```
+
+This may later help Scaler++ distinguish:
+
+```text
+Assignments
+Contests
+Exams
+Homework
+Other test types
+```
+
+if Scaler uses different `test_type` values.
+
+Do not assume all possible values yet.
+
+Only:
+
+```text
+academy_assignment
+```
+
+has been directly observed here.
+
+---
+
+# 79. Additional Test Metadata Available
+
+The test configuration response contains substantially more metadata than Scaler++ currently needs.
+
+Observed fields include:
+
+```text
+test_name
+test_type
+realtime_objective
+enable_code_playback
+hint_access_allowed
+submission_settings
+show_problem_alert
+practice_mode
+enable_scoreboard
+alias
+penalty_config
+company_id
+delay_penalty_enabled
+hint_penalty_enabled
+is_mentee
+do_polling
+is_academy
+sections
+enable_section_locking
+extra_time
+test_session_id
+ibt_session_slug
+```
+
+Potentially useful fields for future features include:
+
+```text
+test_name
+test_type
+practice_mode
+enable_scoreboard
+sections
+test_session_id
+```
+
+Most of the configuration is unnecessary for the contribution-calendar feature.
+
+---
+
+# 80. Sensitive/Ephemeral Test Response Fields
+
+The test configuration response also contained authentication/configuration-related fields such as Firebase configuration and a temporary authentication token.
+
+These values are **not needed** for the Scaler++ contribution feature.
+
+Scaler++ should:
+
+```text
+NOT persist them
+NOT export them
+NOT log them
+NOT include them in analytics
+NOT depend on them
+```
+
+Only extract the minimum metadata required for the feature.
+
+For example:
+
+```text
+test ID
+test name
+test type
+problem IDs
+problem status
+judge type
+```
+
+This follows the principle of minimizing unnecessary sensitive data handling.
+
+---
+
+# 81. `/tests/{id}/problems` Confirmed Again
+
+After:
+
+```text
+GET /api/v2/tests/1226161
+```
+
+Scaler also requests:
+
+```text
+GET /api/v2/tests/1226161/problems
+```
+
+General form:
+
+```text
+GET /api/v2/tests/{test_id}/problems
+```
+
+Therefore the normal Scaler frontend flow appears approximately:
+
+```text
+Open Assignment
+      ↓
+GET /api/v2/tests/{test_id}
+      ↓
+GET /api/v2/tests/{test_id}/problems
+```
+
+The first gives test configuration.
+
+The second gives richer problem-list data.
+
+---
+
+# 82. Notebook Association Endpoint Investigated
+
+While searching for the missing:
+
+```text
+class → test
+```
+
+relationship, this endpoint was investigated:
+
+```text
+GET /notebooks/associations
+    ?associate_type=SuperBatchAcademyTopic
+    &associate_id=506679
+```
+
+Exact observed URL:
+
+```text
+https://www.scaler.com/notebooks/associations?associate_type=SuperBatchAcademyTopic&associate_id=506679
+```
+
+Response:
+
+```json
+{
+  "notebook": {},
+  "notebooks": {}
+}
+```
+
+Conclusion:
+
+> This endpoint is unrelated to discovering assignment test IDs.
+
+It appears to deal with notebooks associated with a class/topic.
+
+Do not use it for contribution-history discovery.
+
+---
+
+# 83. Problem Feedback Meta Endpoint Investigated
+
+Another endpoint named `meta` was observed:
+
+```text
+GET /api/v2/problems/feedbacks/meta
+```
+
+This is related to problem feedback metadata.
+
+Conclusion:
+
+> This is unrelated to class → assignment/test discovery.
+
+Do not confuse it with the important classroom meta endpoint described below.
+
+---
+
+# 84. Critical Discovery — Classroom Meta Endpoint
+
+The most important new discovery was:
+
+```text
+GET /api/v2/classroom/{class_id}/meta
+```
+
+Observed example:
+
+```text
+GET https://www.scaler.com/api/v2/classroom/506679/meta
+```
+
+For:
+
+```text
+class_id = 506679
+```
+
+which corresponds to:
+
+```text
+Bit Manipulations 1
+```
+
+This endpoint directly exposes the class's:
+
+```text
+Assignment test ID
+Homework / Additional Problems test ID
+```
+
+This is the missing bridge we were searching for.
+
+---
+
+# 85. Classroom Meta Response
+
+For:
+
+```text
+GET /api/v2/classroom/506679/meta
+```
+
+Scaler returned information including:
+
+```json
+{
+  "data": {
+    "id": "506679",
+    "type": "meta",
+    "attributes": {
+      "contest": null,
+      "attendance": 91.82,
+      "slug": "bit-manipulations-1-db8a38cb-045d-4496-a557-15ced9f84d43",
+      "status": "active",
+
+      "academy_module": {
+        "id": 466,
+        "name": "Fundamental DSA"
+      },
+
+      "assignment": {
+        "solved": 6,
+        "total": 6,
+        "test_id": 1226161,
+        "user_lesson_id": 566324503,
+        "start_time": "2026-02-02T07:00:00.000Z"
+      },
+
+      "homework": {
+        "solved": 2,
+        "total": 3,
+        "test_id": 1226162,
+        "user_lesson_id": 566324509,
+        "start_time": "2026-02-02T07:30:00.000Z"
+      },
+
+      "current_topic": {
+        "id": 506679,
+        "user_lesson_id": 566324496,
+        "title": "Bit Manipulations 1",
+        "order": 1,
+        "day_of_topic": "2026-02-02T05:00:00.000Z",
+        "day_number": 265
+      }
+    }
+  }
+}
+```
+
+This response is extremely important.
+
+---
+
+# 86. Class → Assignment Mapping Confirmed
+
+For:
+
+```text
+506679 = Bit Manipulations 1
+```
+
+the classroom meta endpoint gives:
+
+```text
+Assignment
+│
+├── solved: 6
+├── total: 6
+├── test_id: 1226161
+├── user_lesson_id: 566324503
+└── start_time: 2026-02-02T07:00:00Z
+```
+
+Therefore the automatic mapping is:
+
+```text
+class_id = 506679
+      ↓
+GET /api/v2/classroom/506679/meta
+      ↓
+assignment.test_id
+      ↓
+1226161
+```
+
+This solves the previously missing:
+
+```text
+CLASS → ASSIGNMENT TEST
+```
+
+relationship.
+
+---
+
+# 87. Class → Additional Problems Mapping Confirmed
+
+The same endpoint also gives:
+
+```text
+homework
+```
+
+For `Bit Manipulations 1`:
+
+```text
+Homework / Additional Problems
+│
+├── solved: 2
+├── total: 3
+├── test_id: 1226162
+├── user_lesson_id: 566324509
+└── start_time: 2026-02-02T07:30:00Z
+```
+
+Therefore:
+
+```text
+class_id = 506679
+      ↓
+GET /api/v2/classroom/506679/meta
+      ↓
+homework.test_id
+      ↓
+1226162
+```
+
+This is especially important because the contribution graph should not accidentally include only regular assignments while missing Additional Problems.
+
+---
+
+# 88. Scaler Terminology Mapping
+
+The Scaler UI displays:
+
+```text
+Assignment
+Additional Problems
+```
+
+The classroom meta API represents them as:
+
+```text
+assignment
+homework
+```
+
+Therefore Scaler++ should understand:
+
+```text
+UI "Assignment"
+    ↔
+API assignment
+
+UI "Additional Problems"
+    ↔
+API homework
+```
+
+Do not assume the API will literally call Additional Problems:
+
+```text
+additional_problems
+```
+
+because the observed API uses:
+
+```text
+homework
+```
+
+---
+
+# 89. Three Lesson IDs Fully Explained
+
+Earlier, class/topic `506679` exposed:
+
+```text
+566324496
+566324503
+566324509
+```
+
+At the time, their meaning was unknown.
+
+The classroom meta response now explains all three:
+
+```text
+566324496 → Current Topic / Lecture
+566324503 → Assignment
+566324509 → Homework / Additional Problems
+```
+
+Full mapping:
+
+```text
+Bit Manipulations 1
+class/topic = 506679
+
+│
+├── Lecture
+│   user_lesson_id = 566324496
+│
+├── Assignment
+│   user_lesson_id = 566324503
+│   test_id = 1226161
+│
+└── Additional Problems / Homework
+    user_lesson_id = 566324509
+    test_id = 1226162
+```
+
+This confirms the earlier hypothesis about the three mentee lesson IDs.
+
+---
+
+# 90. Important Correction About Session `test_id`
+
+The earlier session endpoint:
+
+```text
+GET /api/v2/classroom/506679/session
+```
+
+returned:
+
+```json
+"batch_lesson": {
+  "title": "Bit Manipulations 1",
+  "test_id": null
+}
+```
+
+This initially looked problematic.
+
+We now know why.
+
+That `batch_lesson` represents the **lecture session**, not the assignment resource.
+
+The assignment test ID is instead available from:
+
+```text
+GET /api/v2/classroom/{class_id}/meta
+```
+
+under:
+
+```text
+attributes.assignment.test_id
+```
+
+and Additional Problems under:
+
+```text
+attributes.homework.test_id
+```
+
+Therefore production logic should NOT use:
+
+```text
+session.batch_lesson.test_id
+```
+
+for assignment discovery.
+
+Use:
+
+```text
+classroom meta → assignment.test_id
+classroom meta → homework.test_id
+```
+
+instead.
+
+---
+
+# 91. Classroom Meta Also Provides Validation Counts
+
+For Assignment:
+
+```json
+{
+  "solved": 6,
+  "total": 6
+}
+```
+
+For Homework:
+
+```json
+{
+  "solved": 2,
+  "total": 3
+}
+```
+
+These counts can be used as validation signals.
+
+For example:
+
+```text
+API meta says:
+Assignment solved = 6
+
+Historical reconstruction says:
+Assignment solved = 5
+```
+
+This indicates that the submission crawler may have missed something.
+
+Similarly:
+
+```text
+Homework solved = 2
+```
+
+can validate Additional Problems reconstruction.
+
+This is valuable for detecting incomplete historical syncs.
+
+---
+
+# 92. Classroom Meta Provides Assignment Start Times
+
+The classroom meta endpoint provides:
+
+```json
+"assignment": {
+  "start_time": "2026-02-02T07:00:00.000Z"
+}
+```
+
+and:
+
+```json
+"homework": {
+  "start_time": "2026-02-02T07:30:00.000Z"
+}
+```
+
+This could later support analytics such as:
+
+```text
+assignment released at
+first submission after release
+time between assignment release and solve
+```
+
+However, these metrics are optional and should not complicate V1.
+
+---
+
+# 93. Classroom Meta Provides Class Attendance
+
+The same response contained:
+
+```json
+"attendance": 91.82
+```
+
+This confirms another source of attendance data.
+
+Possible future dashboard metric:
+
+```text
+Attendance: 91.82%
+```
+
+Again, this should remain separate from the problem-solving contribution metric.
+
+---
+
+# 94. Classroom Meta Exposes Available Tabs
+
+The response contains:
+
+```json
+"tabs": [
+  {
+    "name": "live_lecture",
+    "is_locked": false,
+    "is_inactive": false
+  },
+  {
+    "name": "assignment",
+    "is_locked": false,
+    "is_inactive": false
+  },
+  {
+    "name": "homework_assignment",
+    "is_locked": false,
+    "is_inactive": false
+  },
+  {
+    "name": "help_requests",
+    "is_locked": false,
+    "is_inactive": false
+  },
+  {
+    "name": "feedback",
+    "is_locked": false,
+    "is_inactive": false
+  }
+]
+```
+
+This could allow Scaler++ to determine whether a class actually has:
+
+```text
+assignment
+homework/additional problems
+```
+
+before trying to process them.
+
+However, the presence/absence of:
+
+```text
+assignment
+homework
+```
+
+objects themselves may be an even simpler signal.
+
+Implementation should handle missing/null resources gracefully.
+
+---
+
+# 95. Classroom Meta Exposes Nearby Topics
+
+The response also contains a:
+
+```text
+topics
+```
+
+array.
+
+Example:
+
+```text
+501974 → WebDev II - End Term Exam Batch 2029 - Group B+C
+501968 → Linear Algebra - End Term Exam Batch 2029 - Group A+B+C
+501971 → DSA 101 - End Term Exam Batch 2029 - Group A+C
+506679 → Bit Manipulations 1
+506680 → Fundamental DSA LAB I
+506708 → Introduction to Public Speaking
+506681 → Bit Manipulations 2
+```
+
+Each topic can include:
+
+```text
+id
+user_lesson_id
+title
+order
+day_of_topic
+day_number
+```
+
+This could potentially be another navigation/discovery source.
+
+However, the dedicated module → classes endpoint is currently the cleaner source for enumerating classes.
+
+---
+
+# 96. Module → Classes Endpoint Fully Identified
+
+The exact endpoint used to enumerate classes for a module was discovered.
+
+For:
+
+```text
+Fundamental DSA
+module_id = 466
+```
+
+Scaler requested:
+
+```text
+GET https://www.scaler.com/mentee-academy-topics/classes?filter[academy_module_id]=466&filter[status][]=active&filter[status][]=locked&filter[status][]=repeat&filter[status][]=bonus&filter[category]=core&filter[lecture_bucket][]=Optional&filter[lecture_bucket][]=Remedial&&sort=date_of_topic&include[]=super_batch_academy_topic.academy_topic&include[]=super_batch_academy_topic&include[]=super_batch_academy_topic.academy_topic.academy_module
+```
+
+General concept:
+
+```text
+GET /mentee-academy-topics/classes
+    ?filter[academy_module_id]={MODULE_ID}
+    ...
+```
+
+This allows Scaler++ to enumerate classes/topics belonging to a module.
+
+---
+
+# 97. Important Module → Classes Filters
+
+The observed request included these status filters:
+
+```text
+active
+locked
+repeat
+bonus
+```
+
+Specifically:
+
+```text
+filter[status][]=active
+filter[status][]=locked
+filter[status][]=repeat
+filter[status][]=bonus
+```
+
+It also included:
+
+```text
+filter[category]=core
+```
+
+and lecture bucket filters:
+
+```text
+Optional
+Remedial
+```
+
+Sorting:
+
+```text
+sort=date_of_topic
+```
+
+This suggests the endpoint can return more than only normal active classes.
+
+For historical reconstruction, including:
+
+```text
+locked
+repeat
+bonus
+```
+
+may be important so that old/non-standard classes are not accidentally omitted.
+
+The exact filtering behavior should be tested during implementation.
+
+---
+
+# 98. Class Enumeration Response Identity
+
+The class enumeration endpoint returns objects like:
+
+```text
+mentee_academy_topic
+```
+
+with relationships to:
+
+```text
+super_batch_academy_topic
+```
+
+Example conceptual mapping:
+
+```text
+Mentee Academy Topic
+    ↓
+Super Batch Academy Topic
+    ↓
+classroom ID
+```
+
+For Bit Manipulations 1:
+
+```text
+super_batch_academy_topic.id = 506679
+```
+
+That ID is usable directly in:
+
+```text
+GET /api/v2/classroom/506679/meta
+```
+
+Therefore the class crawler can extract:
+
+```text
+relationships.super_batch_academy_topic.data.id
+```
+
+and use that as:
+
+```text
+class_id
+```
+
+for classroom meta requests.
+
+---
+
+# 99. Trimester → Modules Endpoint Fully Identified
+
+The top-level module discovery endpoint was also fully identified.
+
+Observed request:
+
+```text
+GET https://www.scaler.com/api/v3/super_batches/modules-details?trimester=4
+```
+
+General form:
+
+```text
+GET /api/v3/super_batches/modules-details?trimester={N}
+```
+
+This returns modules for the selected trimester.
+
+Example module object:
+
+```json
+{
+  "id": "466",
+  "type": "academy_module",
+  "attributes": {
+    "id": 466,
+    "name": "Fundamental DSA",
+    "category": "core",
+    "duration_in_weeks": 4,
+    "code": null,
+    "repeat": null
+  }
+}
+```
+
+Therefore:
+
+```text
+trimester
+    ↓
+modules-details
+    ↓
+module IDs
+```
+
+is confirmed.
+
+---
+
+# 100. Trimester IDs
+
+Observed calls include:
+
+```text
+trimester=3
+trimester=4
+```
+
+The UI contains semester/term selectors such as:
+
+```text
+SEM 0
+SEM 1 (Term 1)
+SEM 1 (Term 2)
+SEM 2 (Term 1)
+SEM 2 (Term 2)
+```
+
+However, the exact mapping between every visible semester label and numerical:
+
+```text
+trimester=N
+```
+
+has NOT yet been formally documented.
+
+Do not hard-code assumptions such as:
+
+```text
+SEM 2 Term 2 = trimester 4
+```
+
+without verifying the complete mapping.
+
+What is confirmed is that changing curriculum terms triggers requests of the form:
+
+```text
+/api/v3/super_batches/modules-details?trimester=N
+```
+
+---
+
+# 101. Complete Automatic Historical Discovery Chain
+
+We now have an observed API chain from curriculum trimester all the way down to historical submission timestamps.
+
+```text
+TRIMESTER
+    │
+    ▼
+GET /api/v3/super_batches/modules-details?trimester={N}
+    │
+    ▼
+MODULES
+    │
+    │ extract module ID
+    ▼
+MODULE ID
+    │
+    ▼
+GET /mentee-academy-topics/classes
+    ?filter[academy_module_id]={module_id}
+    ...
+    │
+    ▼
+CLASSES / TOPICS
+    │
+    │ extract super_batch_academy_topic.id
+    ▼
+CLASS ID
+    │
+    ▼
+GET /api/v2/classroom/{class_id}/meta
+    │
+    ├────────────────────────────┐
+    │                            │
+    ▼                            ▼
+assignment.test_id        homework.test_id
+    │                            │
+    └────────────┬───────────────┘
+                 │
+                 ▼
+              TEST ID
+                 │
+                 ▼
+GET /api/v2/tests/{test_id}/problems
+                 │
+                 ▼
+              PROBLEMS
+                 │
+                 │ extract problem_id
+                 ▼
+             PROBLEM ID
+                 │
+                 ▼
+GET /api/v2/tests/{test_id}/problems/{problem_id}/user_submissions
+    ?page=1
+    &per_page=100
+                 │
+                 ▼
+         HISTORICAL SUBMISSIONS
+                 │
+        ┌────────┴─────────┐
+        ▼                  ▼
+    created_at           status
+                           │
+                           ▼
+                     correct_answer
+                           │
+                           ▼
+                 earliest successful
+                     submission
+                           │
+                           ▼
+                    SOLVED DATE
+                           │
+                           ▼
+               CONTRIBUTION CALENDAR
+```
+
+This is the most important updated architecture diagram.
+
+---
+
+# 102. Complete Concrete Example
+
+Using actual observed IDs:
+
+```text
+trimester = 4
+        │
+        ▼
+GET /api/v3/super_batches/modules-details?trimester=4
+        │
+        ▼
+Fundamental DSA
+module_id = 466
+        │
+        ▼
+GET /mentee-academy-topics/classes
+    ?filter[academy_module_id]=466...
+        │
+        ▼
+Bit Manipulations 1
+class_id = 506679
+        │
+        ▼
+GET /api/v2/classroom/506679/meta
+        │
+        ├─────────────────────────────┐
+        ▼                             ▼
+Assignment                        Homework
+test_id = 1226161                test_id = 1226162
+        │
+        ▼
+GET /api/v2/tests/1226161/problems
+        │
+        ▼
+problem_id = 189
+Add Binary Strings
+        │
+        ▼
+GET /api/v2/tests/1226161/problems/189/user_submissions
+        │
+        ▼
+2026-03-04T15:28:01Z
+runtime_error
+        │
+        ▼
+2026-03-04T15:29:03Z
+correct_answer
+        │
+        ▼
+First accepted submission
+        │
+        ▼
+Problem solved on
+March 4, 2026
+        │
+        ▼
++1 contribution
+```
+
+This entire chain has now been observed using real Scaler responses.
+
+---
+
+# 103. Automatic Test Discovery Is No Longer an Open Question
+
+The original documentation listed:
+
+```text
+[ ] Automatically discover every test
+```
+
+as an unresolved issue.
+
+This needs to be refined.
+
+We now know how to automatically discover the Assignment and Homework test IDs **for a known class**:
+
+```text
+GET /api/v2/classroom/{class_id}/meta
+```
+
+then:
+
+```text
+attributes.assignment.test_id
+attributes.homework.test_id
+```
+
+Therefore the class-level test-discovery mechanism is confirmed.
+
+What remains to be validated is whether this approach covers **every historical class/test type**, including:
+
+```text
+contests
+exams
+labs
+skill contests
+special assessments
+projects
+other non-standard resources
+```
+
+So the updated status is:
+
+```text
+[✓] Automatically discover standard class Assignment test IDs
+[✓] Automatically discover standard class Homework/Additional Problems test IDs
+[ ] Verify every non-standard test/resource type
+```
+
+---
+
+# 104. Automatic Class Discovery Is Confirmed
+
+The original documentation also treated automatic class enumeration as unfinished.
+
+For a known module, we now have:
+
+```text
+GET /mentee-academy-topics/classes
+    ?filter[academy_module_id]={module_id}
+    ...
+```
+
+Therefore:
+
+```text
+module → classes
+```
+
+is confirmed.
+
+The crawler does not need the user to manually click every class.
+
+---
+
+# 105. Automatic Module Discovery Is Confirmed
+
+For a known trimester:
+
+```text
+GET /api/v3/super_batches/modules-details?trimester={N}
+```
+
+returns its modules.
+
+Therefore:
+
+```text
+trimester → modules
+```
+
+is confirmed.
+
+The remaining top-level question is primarily:
+
+> How should Scaler++ reliably enumerate every trimester available to the current student?
+
+We know the UI exposes them and changing them generates `trimester=N` requests, but the cleanest automatic source for the complete list of valid trimester IDs still needs to be determined or inferred safely.
+
+---
+
+# 106. Updated Remaining Discovery Questions
+
+After the latest investigation, the main unresolved questions are now:
+
+### Curriculum
+
+```text
+How do we automatically determine every valid trimester ID?
+```
+
+### Resource coverage
+
+```text
+Do all standard classes expose assignment/homework through classroom meta?
+How are contests represented?
+How are exams represented?
+How are labs represented?
+How are projects represented?
+How are skill contests represented?
+```
+
+### API behavior
+
+```text
+What are the exact pagination semantics?
+What are safe request rates?
+What concurrency should Scaler++ use?
+How does the API behave for very old classes?
+What happens for locked classes?
+What happens for repeat/bonus classes?
+```
+
+### Extension environment
+
+```text
+Can content scripts call every endpoint directly?
+Do some requests need to go through the background service worker?
+Are credentials automatically included?
+Are additional host permissions necessary?
+Does CORS interfere?
+```
+
+### Identity/deduplication
+
+```text
+Can the same problem appear in multiple tests?
+Should repeated problems count once or once per assignment?
+Are problem IDs globally unique?
+```
+
+These are now the primary technical questions.
+
+---
+
+# 107. Updated API Reference
+
+## Trimester → Modules
+
+```text
+GET /api/v3/super_batches/modules-details?trimester={N}
+```
+
+Example:
+
+```text
+GET /api/v3/super_batches/modules-details?trimester=4
+```
+
+---
+
+## Module → Classes
+
+```text
+GET /mentee-academy-topics/classes
+    ?filter[academy_module_id]={MODULE_ID}
+    &filter[status][]=active
+    &filter[status][]=locked
+    &filter[status][]=repeat
+    &filter[status][]=bonus
+    &filter[category]=core
+    &filter[lecture_bucket][]=Optional
+    &filter[lecture_bucket][]=Remedial
+    &sort=date_of_topic
+    &include[]=super_batch_academy_topic.academy_topic
+    &include[]=super_batch_academy_topic
+    &include[]=super_batch_academy_topic.academy_topic.academy_module
+```
+
+Example module:
+
+```text
+466 = Fundamental DSA
+```
+
+---
+
+## Class → Metadata / Tests
+
+```text
+GET /api/v2/classroom/{CLASS_ID}/meta
+```
+
+Example:
+
+```text
+GET /api/v2/classroom/506679/meta
+```
+
+Important response fields:
+
+```text
+attributes.assignment.test_id
+attributes.assignment.solved
+attributes.assignment.total
+attributes.assignment.user_lesson_id
+attributes.assignment.start_time
+
+attributes.homework.test_id
+attributes.homework.solved
+attributes.homework.total
+attributes.homework.user_lesson_id
+attributes.homework.start_time
+```
+
+---
+
+## Class → Session
+
+```text
+GET /api/v2/classroom/{CLASS_ID}/session
+```
+
+Example:
+
+```text
+GET /api/v2/classroom/506679/session
+```
+
+Useful for:
+
+```text
+lecture/session metadata
+attendance
+lecture title
+start time
+duration
+session ID
+lecture notes
+```
+
+Not the preferred source for assignment test IDs.
+
+---
+
+## Test Configuration
+
+```text
+GET /api/v2/tests/{TEST_ID}
+```
+
+Example:
+
+```text
+GET /api/v2/tests/1226161
+```
+
+Useful fields:
+
+```text
+test_name
+test_type
+sections
+problem IDs
+problem solved state
+judge type
+```
+
+---
+
+## Test → Rich Problem List
+
+```text
+GET /api/v2/tests/{TEST_ID}/problems
+```
+
+Example:
+
+```text
+GET /api/v2/tests/1226161/problems
+```
+
+Provides richer problem metadata.
+
+---
+
+## Problem → Historical User Submissions
+
+```text
+GET /api/v2/tests/{TEST_ID}/problems/{PROBLEM_ID}/user_submissions?page=1&per_page=100
+```
+
+Example:
+
+```text
+GET /api/v2/tests/1226161/problems/189/user_submissions?page=1&per_page=100
+```
+
+Important fields:
+
+```text
+id
+created_at
+status
+programming_language
+programming_language_id
+time
+memory
+score
+```
+
+---
+
+# 108. Updated Recommended Crawler
+
+The first proof-of-concept crawler should approximately perform:
+
+```javascript
+for (const trimester of trimesterIds) {
+
+    const modules = await getModules(trimester);
+
+    for (const module of modules) {
+
+        const classes = await getClasses(module.id);
+
+        for (const classItem of classes) {
+
+            const classId =
+                classItem.relationships
+                    ?.super_batch_academy_topic
+                    ?.data
+                    ?.id;
+
+            if (!classId) continue;
+
+            const meta = await getClassMeta(classId);
+
+            const testIds = [
+                meta.assignment?.test_id,
+                meta.homework?.test_id
+            ].filter(Boolean);
+
+            for (const testId of testIds) {
+
+                const problems = await getTestProblems(testId);
+
+                for (const problem of problems) {
+
+                    const submissions =
+                        await getProblemSubmissions(
+                            testId,
+                            problem.problem_id
+                        );
+
+                    // Normalize and cache submissions.
+                }
+            }
+        }
+    }
+}
+```
+
+This is conceptual code only.
+
+Production implementation still needs:
+
+```text
+pagination
+deduplication
+concurrency limiting
+retry/backoff
+caching
+resume support
+error isolation
+incremental synchronization
+```
+
+---
+
+# 109. Do Not Fetch Every Test Configuration Unless Needed
+
+Because:
+
+```text
+GET /api/v2/classroom/{class_id}/meta
+```
+
+already provides:
+
+```text
+assignment.test_id
+homework.test_id
+```
+
+and:
+
+```text
+GET /api/v2/tests/{test_id}/problems
+```
+
+provides problem information, the crawler may not need:
+
+```text
+GET /api/v2/tests/{test_id}
+```
+
+for every test.
+
+That would add an unnecessary request per test.
+
+Potential efficient path:
+
+```text
+class meta
+    ↓
+test_id
+    ↓
+test problems
+    ↓
+user submissions
+```
+
+Use:
+
+```text
+GET /api/v2/tests/{test_id}
+```
+
+only if its additional metadata is actually required.
+
+This can significantly reduce total API requests during historical backfill.
+
+---
+
+# 110. Request Count Optimization
+
+Suppose there are:
+
+```text
+100 classes
+```
+
+and each has:
+
+```text
+1 assignment
+1 homework
+```
+
+That could produce:
+
+```text
+100 classroom meta requests
+200 test problem-list requests
+many problem submission requests
+```
+
+The submission requests will dominate.
+
+Therefore avoid redundant calls wherever possible.
+
+For example, don't automatically call both:
+
+```text
+/tests/{id}
+```
+
+and:
+
+```text
+/tests/{id}/problems
+```
+
+unless both responses are needed.
+
+---
+
+# 111. Skip Empty Tests Where Possible
+
+Class meta gives:
+
+```text
+solved
+total
+```
+
+Example:
+
+```json
+"assignment": {
+  "solved": 6,
+  "total": 6,
+  "test_id": 1226161
+}
+```
+
+If:
+
+```text
+total = 0
+```
+
+the crawler may be able to skip fetching that test entirely.
+
+Similarly, if an assignment/homework object is:
+
+```text
+null
+missing
+```
+
+do not generate a request.
+
+---
+
+# 112. Potential Backfill Optimization Using `solved`
+
+For the contribution calendar, the primary historical requirement is:
+
+```text
+successful solves
+```
+
+Class meta already tells us:
+
+```text
+solved count
+```
+
+Potential optimization:
+
+If:
+
+```text
+solved = 0
+```
+
+and the only objective is reconstructing successful solve dates, then submission-history requests for that test might be skipped.
+
+However, this would lose:
+
+```text
+failed attempt history
+attempt statistics
+language attempts
+runtime-error history
+```
+
+Therefore there are two possible sync modes:
+
+### Contribution-only mode
+
+Skip tests with zero solved problems.
+
+### Full analytics mode
+
+Fetch attempted/unsolved problem histories too.
+
+This product/performance tradeoff should be decided during implementation.
+
+---
+
+# 113. Recommended V1 Backfill Scope
+
+For V1, prioritize correctness of:
+
+```text
+historical solved dates
+```
+
+over collecting every possible failed attempt.
+
+Recommended first milestone:
+
+```text
+trimester
+→ modules
+→ classes
+→ assignment/homework tests
+→ problems marked solved
+→ submission history for solved problems
+→ earliest correct_answer
+→ contribution calendar
+```
+
+Once this works reliably, expand to full attempt analytics.
+
+This reduces the first implementation's API load and complexity.
+
+---
+
+# 114. Updated Proof Status
+
+```text
+[✓] Historical submission timestamps exist
+
+[✓] Successful submissions identifiable
+
+[✓] Failed submissions identifiable
+
+[✓] Test → problems endpoint discovered
+
+[✓] Problem → submissions endpoint discovered
+
+[✓] Trimester → modules endpoint discovered
+
+[✓] Module → classes endpoint discovered
+
+[✓] Class → assignment test ID discovered
+
+[✓] Class → homework/additional-problems test ID discovered
+
+[✓] Assignment test configuration endpoint discovered
+
+[✓] Class lesson IDs mapped to lecture/assignment/homework
+
+[✓] Historical activity before extension installation is available
+    for tested examples
+
+[✓] Standard curriculum traversal no longer requires manually
+    opening each assignment
+
+[ ] Automatically enumerate every valid trimester
+
+[ ] Verify contests
+
+[ ] Verify exams
+
+[ ] Verify labs/special resources
+
+[ ] Verify projects
+
+[ ] Verify skill contests
+
+[ ] Verify very old/locked curriculum
+
+[ ] Verify pagination semantics thoroughly
+
+[ ] Verify extension-side authenticated fetch behavior
+
+[ ] Determine safe request concurrency
+
+[ ] Build proof-of-concept crawler
+
+[ ] Build local cache/database
+
+[ ] Validate reconstructed counts
+
+[ ] Build contribution calendar
+
+[ ] Build incremental sync
+
+[ ] Build Export Data
+
+[ ] Build Import Data
+```
+
+---
+
+# 115. Revised Next Engineering Milestone
+
+The DevTools investigation has now reached the point where manually inspecting more normal Assignment requests provides diminishing returns.
+
+The next milestone should be:
+
+> **Build a small read-only proof-of-concept crawler for one known trimester.**
+
+Start with:
+
+```text
+trimester = 4
+```
+
+The script should:
+
+```text
+1. Fetch modules.
+
+2. Find Fundamental DSA or process all returned modules.
+
+3. Fetch classes for each module.
+
+4. Extract class IDs.
+
+5. Fetch classroom meta.
+
+6. Extract assignment.test_id.
+
+7. Extract homework.test_id.
+
+8. Fetch problems for each test.
+
+9. For solved problems, fetch user submissions.
+
+10. Find earliest correct_answer.
+
+11. Print:
+
+    date
+    class
+    test
+    problem
+    solved timestamp
+```
+
+Do NOT build the contribution-calendar UI until this automatic traversal succeeds.
+
+---
+
+# 116. Target Proof-of-Concept Output
+
+A successful crawler should eventually print records conceptually like:
+
+```text
+Historical Scaler Activity
+
+2026-03-04
+Fundamental DSA
+Bit Manipulations 1
+Assignment
+Add Binary Strings
+Solved: 2026-03-04T15:29:03.000Z
+
+2026-03-04
+Fundamental DSA
+Bit Manipulations 1
+Assignment
+Bit Operations - 1
+Solved: ...
+
+...
+```
+
+Then aggregate:
+
+```text
+2026-03-04 → 4 problems solved
+2026-03-05 → 2 problems solved
+2026-03-06 → 0 problems solved
+...
+```
+
+Only after that output is verified should we build the GitHub-style grid.
+
+---
+
+# 117. Updated Core Discovery
+
+The core finding is now stronger than the original documentation stated.
+
+Originally:
+
+> Scaler exposes historical per-problem submissions, so historical reconstruction may be possible if tests can be discovered.
+
+Updated:
+
+> **Scaler exposes a traversable chain from curriculum trimesters to modules, modules to classes, classes to Assignment/Homework test IDs, tests to problems, and problems to historical user submissions containing exact timestamps. Therefore automatic historical reconstruction of standard Assignment and Additional Problems activity appears technically feasible without requiring the user to manually open every assignment.**
+
+The currently confirmed chain is:
+
+```text
+trimester
+    ↓
+module
+    ↓
+class
+    ↓
+classroom meta
+    ↓
+assignment/homework test
+    ↓
+problem
+    ↓
+user submission
+    ↓
+created_at
+    ↓
+correct_answer
+    ↓
+historical solved date
+    ↓
+Scaler++ contribution
+```
+
+This should now be treated as the primary technical foundation for the Scaler++ historical activity feature.
