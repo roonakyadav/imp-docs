@@ -14,7 +14,7 @@ The Scaler student dashboard has a large amount of unused space on the main Prac
 
 The proposed Scaler++ feature is a GitHub-style activity/contribution calendar showing a student's academic/problem-solving activity.
 
-
+Conceptually:
 
 ```text
                   Problem Solving Activity
