@@ -1,0 +1,11 @@
+browser-use[video]>=0.1.40
+langchain-ollama
+langchain-openai
+python-dotenv
+playwright
+fastapi
+uvicorn
+jinja2
+pydantic>=2.0.0
+httpx
+psutil
