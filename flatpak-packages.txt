@@ -1,0 +1,19 @@
+Zen	app.zen_browser.zen	1.19.2b	stable	system
+Stremio	com.stremio.Stremio	1.2.0	stable	system
+GitHub Desktop	io.github.shiftey.Desktop	3.4.13-linux1	stable	system
+Resources	net.nokyan.Resources	1.10.2	stable	system
+Freedesktop Platform	org.freedesktop.Platform	freedesktop-sdk-24.08.29	24.08	system
+Freedesktop Platform	org.freedesktop.Platform	freedesktop-sdk-25.08.8	25.08	system
+Mesa	org.freedesktop.Platform.GL.default	25.3.3	24.08	system
+Mesa (Extra)	org.freedesktop.Platform.GL.default	25.3.3	24.08extra	system
+Mesa	org.freedesktop.Platform.GL.default	26.1.6	25.08	system
+Mesa (Extra)	org.freedesktop.Platform.GL.default	26.1.6	25.08-extra	system
+nvidia-595-84	org.freedesktop.Platform.GL.nvidia-595-84		1.4	system
+Intel VAAPI driver	org.freedesktop.Platform.VAAPI.Intel		24.08	system
+Intel VAAPI driver	org.freedesktop.Platform.VAAPI.Intel		25.08	system
+Nvidia VAAPI driver	org.freedesktop.Platform.VAAPI.nvidia		25.08	system
+Codecs Extra Extension	org.freedesktop.Platform.codecs-extra		25.08-extra	system
+openh264	org.freedesktop.Platform.openh264	2.5.1	2.5.1	system
+GNOME Application Platform version 50	org.gnome.Platform		50	system
+Orchis (Dark) Gtk Theme	org.gtk.Gtk3theme.Orchis-Dark	2024-05-30	3.22	system
+Yaru-dark Gtk Theme	org.gtk.Gtk3theme.Yaru-dark		3.22	system
